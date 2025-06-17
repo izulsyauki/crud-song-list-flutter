@@ -45,9 +45,9 @@ class _AddEditPageState extends State<AddEditPage> {
   Future<void> submit() async {
     final uri =
         widget.data == null
-            ? Uri.parse("http://10.0.2.2:3000/lagu")
+            ? Uri.parse("http://17.1.17.32:3030/lagu")
             : Uri.parse(
-              "http://10.0.2.2:3000/lagu/${widget.data!['kode_lagu']}",
+              "http://17.1.17.32:3030/lagu/${widget.data!['kode_lagu']}",
             );
 
     final request = http.MultipartRequest(

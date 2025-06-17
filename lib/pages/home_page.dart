@@ -10,13 +10,13 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   Future<List> fetchData() async {
-    final response = await http.get(Uri.parse("http://10.0.2.2:3000/lagu"));
+    final response = await http.get(Uri.parse("http://17.1.17.32:3030/lagu"));
     return json.decode(response.body);
   }
 
   void deleteLagu(String kodeLagu) async {
     final response = await http.delete(
-      Uri.parse("http://10.0.2.2:3000/lagu/$kodeLagu"),
+      Uri.parse("http://17.1.17.32:3030/lagu/$kodeLagu"),
     );
     if (response.statusCode == 200) {
       ScaffoldMessenger.of(
@@ -45,7 +45,7 @@ class _HomePageState extends State<HomePage> {
                 leading:
                     lagu['gambar'] != null
                         ? Image.network(
-                          "http://10.0.2.2:3000/uploads/${lagu['gambar']}",
+                          "http://17.1.17.32:3030/uploads/${lagu['gambar']}",
                           width: 50,
                         )
                         : Icon(Icons.music_note),
