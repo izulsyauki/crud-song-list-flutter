@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
-
-// Global ImagePicker instance
-final ImagePicker _picker = ImagePicker();
 
 void main() => runApp(const MyApp());
 
@@ -68,39 +63,16 @@ class _DatabaseListViewState extends State<DatabaseListView> {
 
   Future<void> tambahLagu(Map<String, dynamic> data) async {
     try {
-      // Create the multipart request
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse(
-          'http://10.0.2.2:3030/lagu',
-        ), // Use 10.0.2.2 for Android emulator
-      )..headers['Content-Type'] = 'multipart/form-data';
-
-      // Add text fields
-      request.fields['judul_lagu'] = data['judul'] ?? '';
-      request.fields['pencipta'] = data['pencipta'] ?? '';
-      request.fields['penyanyi'] = data['penyanyi'] ?? '';
-      request.fields['jenis'] = data['jenis'] ?? '';
-
-      // Add image file if exists
-      if (data['gambar'] != null && data['gambar'] is File) {
-        final file = data['gambar'] as File;
-        final fileStream = http.ByteStream(file.openRead());
-        final length = await file.length();
-
-        final multipartFile = http.MultipartFile(
-          'gambar',
-          fileStream,
-          length,
-          filename: '${DateTime.now().millisecondsSinceEpoch}.jpg',
-        );
-
-        request.files.add(multipartFile);
-      }
-
-      // Send the request
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      final response = await http.post(
+        Uri.parse('http://17.1.17.32:3030/lagu'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'judul_lagu': data['judul'] ?? '',
+          'pencipta': data['pencipta'] ?? '',
+          'penyanyi': data['penyanyi'] ?? '',
+          'jenis': data['jenis'] ?? '',
+        }),
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         if (!mounted) return;
@@ -117,6 +89,46 @@ class _DatabaseListViewState extends State<DatabaseListView> {
           SnackBar(
             content: Text(
               'Error: ${responseData['message'] ?? 'Gagal menambahkan lagu'}',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+    }
+  }
+
+  Future<void> updateLagu(Map<String, dynamic> data) async {
+    try {
+      final response = await http.put(
+        Uri.parse('http://17.1.17.32:3030/lagu/${data['kode_lagu']}'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'judul_lagu': data['judul'] ?? '',
+          'pencipta': data['pencipta'] ?? '',
+          'penyanyi': data['penyanyi'] ?? '',
+          'jenis': data['jenis'] ?? '',
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        if (!mounted) return;
+        await getLagu(); // Refresh the list
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Lagu berhasil diperbarui')),
+        );
+        Navigator.of(context).pop(); // Close the dialog
+      } else {
+        final responseData = jsonDecode(response.body);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error: ${responseData['message'] ?? 'Gagal memperbarui lagu'}',
             ),
           ),
         );
@@ -211,68 +223,86 @@ class _DatabaseListViewState extends State<DatabaseListView> {
                             },
                             child: Card(
                               child: ListTile(
-                                leading:
-                                    lagu[index]['gambar'] != null
-                                        ? Image.network(
-                                          'http://17.1.17.32:3030/uploads/${lagu[index]['gambar']}',
-                                          width: 40,
-                                          height: 40,
-                                          fit: BoxFit.cover,
-                                        )
-                                        : const Icon(Icons.music_note),
+                                leading: const Icon(Icons.music_note),
                                 title: Text(lagu[index]['judul_lagu']),
                                 subtitle: Text(
                                   'Penyanyi: ${lagu[index]['penyanyi']}',
                                 ),
-                                trailing: IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () {
-                                    showDialog(
-                                      context: context,
-                                      builder:
-                                          (context) => AlertDialog(
-                                            title: const Text(
-                                              'Konfirmasi Hapus',
-                                            ),
-                                            content: const Text(
-                                              'Apakah Anda yakin ingin menghapus lagu ini?',
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed:
-                                                    () =>
-                                                        Navigator.pop(context),
-                                                child: const Text(
-                                                  'Batal',
-                                                  style: TextStyle(
-                                                    color: Colors.black,
-                                                  ),
-                                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.edit,
+                                        color: Colors.blue,
+                                      ),
+                                      onPressed: () async {
+                                        final updatedData = await showDialog(
+                                          context: context,
+                                          builder:
+                                              (context) => EditLaguDialog(
+                                                lagu: lagu[index],
                                               ),
-                                              ElevatedButton(
-                                                onPressed: () {
-                                                  Navigator.pop(context);
-                                                  hapusLagu(
-                                                    lagu[index]['kode_lagu'],
-                                                  );
-                                                },
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.red,
+                                        );
+                                        if (updatedData != null && mounted) {
+                                          await updateLagu(updatedData);
+                                        }
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () {
+                                        showDialog(
+                                          context: context,
+                                          builder:
+                                              (context) => AlertDialog(
+                                                title: const Text(
+                                                  'Konfirmasi Hapus',
                                                 ),
-                                                child: const Text(
-                                                  'Hapus',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
+                                                content: const Text(
+                                                  'Apakah Anda yakin ingin menghapus lagu ini?',
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed:
+                                                        () => Navigator.pop(
+                                                          context,
+                                                        ),
+                                                    child: const Text(
+                                                      'Batal',
+                                                      style: TextStyle(
+                                                        color: Colors.black,
+                                                      ),
+                                                    ),
                                                   ),
-                                                ),
+                                                  ElevatedButton(
+                                                    onPressed: () {
+                                                      Navigator.pop(context);
+                                                      hapusLagu(
+                                                        lagu[index]['kode_lagu'],
+                                                      );
+                                                    },
+                                                    style:
+                                                        ElevatedButton.styleFrom(
+                                                          backgroundColor:
+                                                              Colors.red,
+                                                        ),
+                                                    child: const Text(
+                                                      'Hapus',
+                                                      style: TextStyle(
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                            ],
-                                          ),
-                                    );
-                                  },
+                                        );
+                                      },
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -311,8 +341,6 @@ class _InputLaguDialogContentState extends State<_InputLaguDialogContent> {
   final _penciptaController = TextEditingController();
   final _penyanyiController = TextEditingController();
   final _jenisController = TextEditingController();
-  // final ImagePicker _picker = ImagePicker();
-  File? _gambar;
 
   @override
   void dispose() {
@@ -323,14 +351,14 @@ class _InputLaguDialogContentState extends State<_InputLaguDialogContent> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      setState(() {
-        _gambar = File(pickedFile.path);
-      });
-    }
-  }
+  // Future<void> _pickImage() async {
+  //   final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+  //   if (pickedFile != null) {
+  //     setState(() {
+  //       _gambar = File(pickedFile.path);
+  //     });
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -382,24 +410,8 @@ class _InputLaguDialogContentState extends State<_InputLaguDialogContent> {
               return null;
             },
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _pickImage,
-                  child: const Text('Pilih Gambar'),
-                ),
-              ),
-              if (_gambar != null)
-                Expanded(
-                  child: Text(
-                    _gambar!.path.split('/').last,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-            ],
-          ),
+
+          // ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -417,7 +429,6 @@ class _InputLaguDialogContentState extends State<_InputLaguDialogContent> {
                       'pencipta': _penciptaController.text,
                       'penyanyi': _penyanyiController.text,
                       'jenis': _jenisController.text,
-                      'gambar': _gambar,
                     });
                   }
                 },
@@ -459,7 +470,10 @@ class DetailPage extends StatelessWidget {
                             ),
                             fit: BoxFit.cover,
                           )
-                          : null,
+                          : DecorationImage(
+                            image: AssetImage('images/default-image.jpg'),
+                            fit: BoxFit.cover,
+                          ),
                 ),
                 child:
                     lagu['gambar'] == null
@@ -487,22 +501,22 @@ class DetailPage extends StatelessWidget {
               'Jenis: ${lagu['jenis']}',
               style: const TextStyle(fontSize: 18),
             ),
-            const SizedBox(height: 16),
-            Center(
-              child: ElevatedButton(
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => EditLaguDialog(lagu: lagu),
-                  ).then((value) {
-                    if (value != null) {
-                      Navigator.pop(context, value);
-                    }
-                  });
-                },
-                child: const Text('Edit'),
-              ),
-            ),
+            // const SizedBox(height: 16),
+            // Center(
+            //   child: ElevatedButton(
+            //     onPressed: () {
+            //       showDialog(
+            //         context: context,
+            //         builder: (context) => EditLaguDialog(lagu: lagu),
+            //       ).then((value) {
+            //         if (value != null) {
+            //           Navigator.pop(context, value);
+            //         }
+            //       });
+            //     },
+            //     child: const Text('Edit'),
+            //   ),
+            // ),
           ],
         ),
       ),
@@ -539,7 +553,7 @@ class _EditLaguDialogContentState extends State<_EditLaguDialogContent> {
   final _penciptaController = TextEditingController();
   final _penyanyiController = TextEditingController();
   final _jenisController = TextEditingController();
-  File? _gambar;
+  // File? _gambar;
   String? _kodeLagu;
 
   @override
@@ -561,14 +575,14 @@ class _EditLaguDialogContentState extends State<_EditLaguDialogContent> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      setState(() {
-        _gambar = File(pickedFile.path);
-      });
-    }
-  }
+  // Future<void> _pickImage() async {
+  //   final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+  //   if (pickedFile != null) {
+  //     setState(() {
+  //       _gambar = File(pickedFile.path);
+  //     });
+  //   }
+  // }
 
   void _updateData() {
     if (_formKey.currentState!.validate()) {
@@ -578,88 +592,93 @@ class _EditLaguDialogContentState extends State<_EditLaguDialogContent> {
         'pencipta': _penciptaController.text,
         'penyanyi': _penyanyiController.text,
         'jenis': _jenisController.text,
-        'gambar': _gambar,
+        // 'gambar': _gambar,
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Edit Lagu'),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _judulController,
-                decoration: const InputDecoration(labelText: 'Judul Lagu'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Judul lagu tidak boleh kosong';
-                  }
-                  return null;
-                },
+    return SingleChildScrollView(
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _judulController,
+              decoration: const InputDecoration(
+                labelText: 'Judul Lagu',
+                border: OutlineInputBorder(),
               ),
-              TextFormField(
-                controller: _penciptaController,
-                decoration: const InputDecoration(labelText: 'Pencipta'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Pencipta tidak boleh kosong';
-                  }
-                  return null;
-                },
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Judul lagu tidak boleh kosong';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _penciptaController,
+              decoration: const InputDecoration(
+                labelText: 'Pencipta',
+                border: OutlineInputBorder(),
               ),
-              TextFormField(
-                controller: _penyanyiController,
-                decoration: const InputDecoration(labelText: 'Penyanyi'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Penyanyi tidak boleh kosong';
-                  }
-                  return null;
-                },
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Pencipta tidak boleh kosong';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _penyanyiController,
+              decoration: const InputDecoration(
+                labelText: 'Penyanyi',
+                border: OutlineInputBorder(),
               ),
-              TextFormField(
-                controller: _jenisController,
-                decoration: const InputDecoration(labelText: 'Jenis Lagu'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Jenis lagu tidak boleh kosong';
-                  }
-                  return null;
-                },
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Penyanyi tidak boleh kosong';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _jenisController,
+              decoration: const InputDecoration(
+                labelText: 'Jenis Lagu',
+                border: OutlineInputBorder(),
               ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _pickImage,
-                child: const Text('Pilih Gambar'),
-              ),
-              if (_gambar != null)
-                Image.file(_gambar!, height: 100, fit: BoxFit.cover)
-              else if (widget.lagu['gambar'] != null)
-                Image.network(
-                  'http://17.1.17.32:3030/uploads/${widget.lagu['gambar']}',
-                  height: 100,
-                  fit: BoxFit.cover,
-                  errorBuilder:
-                      (context, error, stackTrace) =>
-                          const Icon(Icons.broken_image, size: 100),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Jenis lagu tidak boleh kosong';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Batal'),
                 ),
-            ],
-          ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _updateData,
+                  child: const Text('Simpan'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Batal'),
-        ),
-        ElevatedButton(onPressed: _updateData, child: const Text('Simpan')),
-      ],
     );
   }
 }
